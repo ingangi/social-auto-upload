@@ -267,16 +267,45 @@ class DouYinVideo(object):
             douyin_logger.info('  [-] 正在设置视频封面...')
             await page.click('text="选择封面"')
             await page.wait_for_selector("div.dy-creator-content-modal")
-            await page.click('text="设置竖封面"')
-            await page.wait_for_timeout(2000)  # 等待2秒
-            # 定位到上传区域并点击
-            await page.locator("div[class^='semi-upload upload'] >> input.semi-upload-hidden-input").set_input_files(thumbnail_path)
-            await page.wait_for_timeout(2000)  # 等待2秒
-            await page.locator("div#tooltip-container button:visible:has-text('完成')").click()
-            # finish_confirm_element = page.locator("div[class^='confirmBtn'] >> div:has-text('完成')")
-            # if await finish_confirm_element.count():
-            #     await finish_confirm_element.click()
-            # await page.locator("div[class^='footer'] button:has-text('完成')").click()
+
+            # Step 1: Set vertical cover (竖封面)
+            try:
+                await page.click('text="设置竖封面"', timeout=3000)
+                douyin_logger.info('  [-] 设置竖封面...')
+                await page.wait_for_timeout(2000)
+                await page.locator("div[class^='semi-upload upload'] >> input.semi-upload-hidden-input").set_input_files(thumbnail_path)
+                await page.wait_for_timeout(2000)
+                # Click finish for vertical cover
+                await page.locator("div#tooltip-container button:visible:has-text('完成')").click()
+                douyin_logger.info('  [+] 竖封面设置完成')
+                await page.wait_for_timeout(1000)
+            except Exception as e:
+                douyin_logger.warning(f'  [!] 竖封面设置失败: {e}')
+
+            # Step 2: Handle horizontal cover prompt dialog
+            try:
+                # Check if the horizontal cover prompt dialog appears
+                prompt_selector = 'text="设置横封面获更多流量"'
+                if await page.locator(prompt_selector).count() > 0:
+                    douyin_logger.info('  [-] 检测到横封面引导弹窗')
+
+                    # Option 1: Click "暂不设置" to skip
+                    try:
+                        await page.click('text="暂不设置"', timeout=3000)
+                        douyin_logger.info('  [+] 跳过横封面设置')
+                    except:
+                        # Option 2: Or click "设置横封面" then immediately click finish
+                        try:
+                            await page.click('text="设置横封面"', timeout=3000)
+                            await page.wait_for_timeout(1000)
+                            # Click finish without uploading
+                            await page.locator("div#tooltip-container button:visible:has-text('完成')").click()
+                            douyin_logger.info('  [+] 横封面设置完成（自动生成）')
+                        except:
+                            douyin_logger.warning('  [!] 横封面处理失败，跳过')
+            except Exception as e:
+                douyin_logger.warning(f'  [!] 横封面弹窗处理失败: {e}')
+
             douyin_logger.info('  [+] 视频封面设置完成！')
             # 等待封面设置对话框关闭
             await page.wait_for_selector("div.extractFooter", state='detached')
